@@ -1,7 +1,10 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createECDH, randomBytes, randomUUID } from 'node:crypto';
-import { createServer, IncomingMessage } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { createServer } from 'node:https';
+import type { IncomingMessage } from 'node:http';
+import { resolve } from 'node:path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ece = require('http_ece') as {
   decrypt: (buf: Buffer, opts: Record<string, unknown>) => Buffer;
@@ -13,10 +16,15 @@ import { sendWakeUp } from '../src/push';
 import { startEventListener } from '../src/ws';
 import { auth, registerUser, TestUser } from './helpers';
 
-// A fake push service on plain http (allowed by WEBPUSH_ALLOW_HTTP) plus a
-// browser-side key pair, so the test can decrypt what the server sent exactly
-// as the browser would (RFC 8291, aes128gcm).
-process.env.WEBPUSH_ALLOW_HTTP = '1';
+// A fake push service plus a browser-side key pair, so the test can decrypt
+// what the server sent exactly as the browser would (RFC 8291, aes128gcm).
+// web-push speaks https only: the fixture serves a self-signed certificate
+// (test/fixtures/push-tls.*, test-only), which this process accepts.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const TLS = {
+  key: readFileSync(resolve(__dirname, 'fixtures/push-tls.key')),
+  cert: readFileSync(resolve(__dirname, 'fixtures/push-tls.crt')),
+};
 
 const app = buildApp();
 let listener: ReturnType<typeof startEventListener>;
@@ -52,7 +60,7 @@ async function startPushService(): Promise<FakePushService> {
   const authSecret = randomBytes(16);
   const state = { status: 201 };
   const received: Received[] = [];
-  const server = createServer((req, res) => {
+  const server = createServer(TLS, (req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => chunks.push(c));
     req.on('end', () => {
@@ -70,7 +78,7 @@ async function startPushService(): Promise<FakePushService> {
   const { port } = server.address() as { port: number };
   return {
     subscription: JSON.stringify({
-      endpoint: `http://127.0.0.1:${port}/push/${randomUUID()}`,
+      endpoint: `https://127.0.0.1:${port}/push/${randomUUID()}`,
       keys: {
         p256dh: ecdh.getPublicKey().toString('base64url'),
         auth: authSecret.toString('base64url'),

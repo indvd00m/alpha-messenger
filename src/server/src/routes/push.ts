@@ -148,9 +148,7 @@ function isWebPushSubscription(raw: string): boolean {
     };
     return (
       typeof sub.endpoint === 'string' &&
-      // Real push services are https only; plain http only for the test fixture.
-      (/^https:\/\//.test(sub.endpoint) ||
-        (process.env.WEBPUSH_ALLOW_HTTP === '1' && /^http:\/\//.test(sub.endpoint))) &&
+      /^https:\/\//.test(sub.endpoint) &&
       typeof sub.keys?.p256dh === 'string' &&
       typeof sub.keys?.auth === 'string'
     );

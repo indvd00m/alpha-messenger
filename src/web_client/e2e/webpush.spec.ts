@@ -14,6 +14,11 @@ import { registerViaUi } from './helpers/ui';
 
 const ORIGIN = 'http://localhost:5173';
 
+// The headless shell reports Notification.permission 'denied' even when the
+// permission is granted (Permissions API says 'granted'), so the client would
+// never subscribe. Full Chromium in new headless mode behaves like a browser.
+test.use({ channel: 'chromium' });
+
 async function webPushContext(browser: import('@playwright/test').Browser): Promise<BrowserContext> {
   const ctx = await browser.newContext({ locale: 'ru-RU' });
   await ctx.grantPermissions(['notifications'], { origin: ORIGIN });
